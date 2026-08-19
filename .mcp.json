@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "fb-manager": {
+      "command": "node",
+      "args": ["node_modules/tsx/dist/cli.mjs", "src/mcp.ts"]
+    },
+    "meta-ads": {
+      "type": "http",
+      "url": "https://mcp.facebook.com/ads"
+    }
+  }
+}

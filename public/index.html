@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quản lý tài khoản quảng cáo</title>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --ink: #16202c;
+    --muted: #64748b;
+    --line: #e2e8f0;
+    --accent: #0d9488;
+    --danger: #dc2626;
+    --warn: #d97706;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    background: linear-gradient(90deg, #0d9488, #0369a1);
+    color: #fff;
+    padding: 18px 24px;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: .85; }
+  main { padding: 20px 24px 48px; max-width: 1500px; margin: 0 auto; }
+  h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 28px 0 12px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+  .tile {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .tile .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .tile .value { font-size: 22px; font-weight: 600; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .tile .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 16px 0 12px; }
+  input, select {
+    font: inherit; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: inherit;
+  }
+  input[type=search] { min-width: 320px; }
+  .wrap { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 9px 12px; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--line); }
+  th { background: #f8fafc; color: var(--muted); font-weight: 600; position: sticky; top: 0; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  tr.over td.num.bal { color: var(--danger); font-weight: 600; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+  .ok   { background: #ecfdf5; color: #047857; }
+  .bad  { background: #fef2f2; color: var(--danger); }
+  .hold { background: #fffbeb; color: var(--warn); }
+  .muted { color: var(--muted); }
+  .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; color: var(--muted); }
+  button {
+    font: inherit; padding: 8px 14px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Quản lý tài khoản quảng cáo</h1>
+  <p id="meta">Đang tải…</p>
+</header>
+
+<main>
+  <h2>Tổng theo loại tiền</h2>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Trạng thái tài khoản</h2>
+  <div class="tiles" id="statuses"></div>
+
+  <h2>Danh sách tài khoản</h2>
+  <div class="controls">
+    <input type="search" id="q" placeholder="Tìm theo ID, tên, BM hoặc thẻ…" />
+    <select id="currency"><option value="">Mọi loại tiền</option></select>
+    <select id="status"><option value="">Mọi trạng thái</option></select>
+    <label class="muted">Cảnh báo khi công nợ vượt
+      <input type="number" id="threshold" value="0" min="0" style="width:130px" />
+    </label>
+  </div>
+
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>ID tài khoản</th><th>Tên</th><th>Thuộc BM</th><th>Thẻ</th>
+          <th>Loại</th><th>Trạng thái</th>
+          <th class="num">Đã chi tiêu</th><th class="num">Công nợ</th>
+        </tr>
+      </thead>
+      <tbody id="rows"><tr><td colspan="8" class="muted">Đang tải…</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="foot">
+    <span id="count"></span>
+    <span>
+      <button id="prev">← Trước</button>
+      <button id="next">Sau →</button>
+    </span>
+  </div>
+</main>
+
+<script>
+// Meta trả tiền theo đơn vị nhỏ nhất. Phần lớn tiền tệ chia 100 để ra đơn vị chính,
+// nhưng nhóm dưới đây vốn không có đơn vị lẻ nên giữ nguyên.
+const NO_DECIMALS = new Set(['VND','IDR','JPY','KRW','CLP','COP','HUF','ISK','PYG','TWD','XAF','XOF','BIF','DJF','GNF','KMF','MGA','RWF','UGX']);
+
+function money(amount, currency) {
+  const value = NO_DECIMALS.has(currency) ? Number(amount) : Number(amount) / 100;
+  return value.toLocaleString('vi-VN', { maximumFractionDigits: 2 }) + ' ' + currency;
+}
+
+const PAGE = 200;
+let offset = 0;
+
+const $ = (id) => document.getElementById(id);
+
+async function loadSummary() {
+  const data = await fetch('/api/summary').then((r) => r.json());
+
+  $('meta').textContent = data.total
+    ? `${data.total.toLocaleString('vi-VN')} tài khoản · cập nhật lúc ${new Date(data.synced_at).toLocaleString('vi-VN')}`
+    : 'Chưa có dữ liệu — chạy "npm run sync" trước.';
+
+  $('tiles').innerHTML = data.byCurrency.map((row) => `
+    <div class="tile">
+      <div class="label">${row.currency}</div>
+      <div class="value">${money(row.spent, row.currency)}</div>
+      <div class="sub">đã chi tiêu · ${row.accounts.toLocaleString('vi-VN')} tài khoản</div>
+      <div class="sub">công nợ: <strong>${money(row.balance, row.currency)}</strong></div>
+    </div>`).join('');
+
+  $('statuses').innerHTML = data.byStatus.map((row) => `
+    <div class="tile">
+      <div class="label">${row.label}</div>
+      <div class="value">${row.accounts.toLocaleString('vi-VN')}</div>
+    </div>`).join('');
+
+  const currencies = data.byCurrency.map((row) => row.currency);
+  $('currency').innerHTML = '<option value="">Mọi loại tiền</option>'
+    + currencies.map((c) => `<option value="${c}">${c}</option>`).join('');
+  $('status').innerHTML = '<option value="">Mọi trạng thái</option>'
+    + data.byStatus.map((s) => `<option value="${s.account_status}">${s.label}</option>`).join('');
+}
+
+function statusPill(row) {
+  const cls = row.account_status === 1 ? 'ok' : row.account_status === 3 ? 'hold' : 'bad';
+  return `<span class="pill ${cls}">${row.status_label}</span>`;
+}
+
+async function loadRows() {
+  const params = new URLSearchParams({
+    q: $('q').value, currency: $('currency').value, status: $('status').value,
+    limit: String(PAGE), offset: String(offset),
+  });
+  const data = await fetch('/api/accounts?' + params).then((r) => r.json());
+  const threshold = Number($('threshold').value) || 0;
+
+  $('rows').innerHTML = data.rows.length ? data.rows.map((row) => {
+    const over = threshold > 0 && Number(row.balance) > threshold;
+    return `<tr class="${over ? 'over' : ''}">
+      <td>${row.id}</td>
+      <td>${row.name || '<span class="muted">(không tên)</span>'}</td>
+      <td>${row.business_name || '<span class="muted">—</span>'}</td>
+      <td>${row.card || '<span class="muted">—</span>'}</td>
+      <td>${row.is_prepay_account ? 'Trả trước' : 'Trả sau'}</td>
+      <td>${statusPill(row)}</td>
+      <td class="num">${money(row.amount_spent, row.currency)}</td>
+      <td class="num bal">${money(row.balance, row.currency)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" class="muted">Không có tài khoản nào khớp.</td></tr>';
+
+  const to = Math.min(offset + PAGE, data.total);
+  $('count').textContent = data.total
+    ? `Hiển thị ${(offset + 1).toLocaleString('vi-VN')}–${to.toLocaleString('vi-VN')} trong ${data.total.toLocaleString('vi-VN')} tài khoản`
+    : '';
+  $('prev').disabled = offset === 0;
+  $('next').disabled = to >= data.total;
+}
+
+let timer;
+const refresh = () => { offset = 0; clearTimeout(timer); timer = setTimeout(loadRows, 200); };
+
+$('q').addEventListener('input', refresh);
+$('currency').addEventListener('change', refresh);
+$('status').addEventListener('change', refresh);
+$('threshold').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(loadRows, 200); });
+$('prev').addEventListener('click', () => { offset = Math.max(0, offset - PAGE); loadRows(); });
+$('next').addEventListener('click', () => { offset += PAGE; loadRows(); });
+
+await loadSummary();
+await loadRows();
+</script>
+</body>
+</html>

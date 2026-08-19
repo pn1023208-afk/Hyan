@@ -1,0 +1,32 @@
+﻿{
+  "name": "fb-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "fb": "tsx src/cli.ts",
+    "fb:probe": "tsx src/probe.ts",
+    "sync": "tsx src/sync.ts",
+    "web": "tsx src/server.ts",
+    "manage": "tsx src/manage.ts",
+    "spend": "tsx src/spend.ts",
+    "daily": "tsx src/daily.ts",
+    "mcp": "tsx src/mcp.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "dotenv": "^16.4.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.5",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}
+

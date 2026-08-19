@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Quản trị</title>
+<style>
+  :root { --line:#e2e8f0; --muted:#64748b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#f4f7fb; color:#16202c; font:14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { background:linear-gradient(90deg,#0d9488,#0369a1); color:#fff; padding:18px 24px;
+           display:flex; justify-content:space-between; align-items:center; }
+  header h1 { margin:0; font-size:18px; }
+  header a { color:#fff; font-size:13px; }
+  main { padding:20px 24px 48px; max-width:1200px; margin:0 auto; }
+  h2 { font-size:14px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin:28px 0 12px; }
+  .wrap { background:#fff; border:1px solid var(--line); border-radius:10px; overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th, td { padding:9px 12px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { background:#f8fafc; color:var(--muted); font-weight:600; }
+  tr:last-child td { border-bottom:0; }
+  select, button { font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+  button { cursor:pointer; background:#0d9488; color:#fff; border:0; }
+  .muted { color:var(--muted); }
+  code { font-size:12px; background:#f1f5f9; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Quản trị</h1>
+  <span><a href="/">← Dashboard</a> &nbsp; <a href="/logout">Đăng xuất</a></span>
+</header>
+<main>
+  <h2>Tài khoản chờ duyệt</h2>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Email</th><th>Họ tên</th><th>Đăng ký lúc</th><th>Gán cho khách</th><th></th></tr></thead>
+      <tbody id="pending"><tr><td colspan="5" class="muted">Đang tải…</td></tr></tbody>
+    </table>
+  </div>
+
+  <h2>Nhật ký thao tác (300 dòng gần nhất)</h2>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Thời điểm</th><th>Người dùng</th><th>IP</th><th>Hành động</th><th>Chi tiết</th></tr></thead>
+      <tbody id="audit"><tr><td colspan="5" class="muted">Đang tải…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const when = (iso) => new Date(iso).toLocaleString('vi-VN');
+let customers = [];
+
+async function loadPending() {
+  const rows = await fetch('/admin/pending').then((r) => r.json());
+  if (!rows.length) {
+    $('pending').innerHTML = '<tr><td colspan="5" class="muted">Không có ai chờ duyệt.</td></tr>';
+    return;
+  }
+  const options = ['<option value="">— nội bộ, không thuộc khách nào —</option>']
+    .concat(customers.map((c) => `<option value="${c.id}">${c.name}</option>`)).join('');
+
+  $('pending').innerHTML = rows.map((row) => `
+    <tr>
+      <td>${row.email}</td>
+      <td>${row.name || '<span class="muted">—</span>'}</td>
+      <td>${when(row.created_at)}</td>
+      <td><select data-for="${row.id}">${options}</select></td>
+      <td><button data-approve="${row.id}">Duyệt</button></td>
+    </tr>`).join('');
+
+  for (const button of document.querySelectorAll('[data-approve]')) {
+    button.addEventListener('click', async () => {
+      const id = button.dataset.approve;
+      const select = document.querySelector(`[data-for="${id}"]`);
+      const body = new URLSearchParams({ user_id: id, customer_id: select.value });
+      await fetch('/admin/approve', { method: 'POST', body });
+      await loadPending();
+      await loadAudit();
+    });
+  }
+}
+
+async function loadAudit() {
+  const rows = await fetch('/admin/audit').then((r) => r.json());
+  $('audit').innerHTML = rows.length ? rows.map((row) => `
+    <tr>
+      <td>${when(row.at)}</td>
+      <td>${row.email || '<span class="muted">(chưa đăng nhập)</span>'}</td>
+      <td>${row.ip || ''}</td>
+      <td><code>${row.action}</code></td>
+      <td class="muted">${row.detail || ''}</td>
+    </tr>`).join('') : '<tr><td colspan="5" class="muted">Chưa có gì.</td></tr>';
+}
+
+customers = await fetch('/admin/customers').then((r) => r.json());
+await loadPending();
+await loadAudit();
+</script>
+</body>
+</html>
